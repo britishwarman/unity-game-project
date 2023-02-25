@@ -2,54 +2,89 @@ using UnityEngine;
 
 public class PlayerMovement : MonoBehaviour
 {
-    [SerializeField] private float speed = 5f;
-    [SerializeField] private float jumpForce = 10f;
-    [SerializeField] private float dashDistance = 5f;
-    [SerializeField] private float dashDuration = 0.3f;
+    public float walkSpeed = 5f;
+    public float runSpeed = 10f;
+    public float jumpForce = 10f;
+    public float dashDistance = 5f;
+    public float dashTime = 0.5f;
+    public float dashCooldown = 1f;
 
-    private CharacterController controller;
-    private Vector3 playerVelocity;
-    private bool groundedPlayer;
-    private bool isDashing;
+    private float currentSpeed;
+    private bool isGrounded = true;
+    private bool isDashing = false;
+    private bool canDash = true;
+    private Vector3 dashDirection;
 
-    private void Start()
+    private Rigidbody rb;
+
+    void Start()
     {
-        controller = GetComponent<CharacterController>();
+        rb = GetComponent<Rigidbody>();
+        currentSpeed = walkSpeed;
     }
 
-    private void Update()
+    void Update()
     {
-        groundedPlayer = controller.isGrounded;
-
-
-        if (Input.GetButtonDown("Jump"))
-        {
-            if (groundedPlayer)
-            {
-                playerVelocity.y += Mathf.Sqrt(jumpForce * -3.0f * Physics.gravity.y);
-            }
-        }
-
-        if (Input.GetButtonDown("Dash") && !isDashing)
-        {
-            isDashing = true;
-            playerVelocity = transform.forward * dashDistance / dashDuration;
-            Invoke(nameof(StopDashing), dashDuration);
-        }
-
+        // Move player left and right
         float horizontalInput = Input.GetAxis("Horizontal");
         float verticalInput = Input.GetAxis("Vertical");
+        Vector3 movement = new Vector3(horizontalInput, 0f, verticalInput) * currentSpeed * Time.deltaTime;
+        transform.Translate(movement, Space.Self);
 
-        Vector3 move = transform.right * horizontalInput + transform.forward * verticalInput;
-        controller.Move(move * speed * Time.deltaTime);
+        // Jump
+        if (Input.GetButtonDown("Jump") && isGrounded)
+        {
+            rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
+            isGrounded = false;
+        }
 
-        playerVelocity.y += Physics.gravity.y * Time.deltaTime;
-        controller.Move(playerVelocity * Time.deltaTime);
+        // Dash
+        if (Input.GetButtonDown("Dash") && canDash)
+        {
+            dashDirection = transform.forward;
+            isDashing = true;
+            canDash = false;
+            Invoke(nameof(ResetDash), dashCooldown);
+            Invoke(nameof(StopDash), dashTime);
+        }
+
+        // Walk/Run
+        if (Input.GetKey(KeyCode.LeftShift))
+        {
+            currentSpeed = runSpeed;
+        }
+        else
+        {
+            currentSpeed = walkSpeed;
+        }
     }
 
-    private void StopDashing()
+    void FixedUpdate()
+    {
+        // Apply dash force
+        if (isDashing)
+        {
+            rb.AddForce(dashDirection * dashDistance, ForceMode.VelocityChange);
+        }
+    }
+
+    void OnCollisionEnter(Collision collision)
+    {
+        // Check if player is grounded
+        if (collision.gameObject.CompareTag("Ground"))
+        {
+            isGrounded = true;
+            isDashing = false;
+        }
+    }
+
+    void ResetDash()
+    {
+        canDash = true;
+    }
+
+    void StopDash()
     {
         isDashing = false;
-        playerVelocity = Vector3.zero;
     }
 }
